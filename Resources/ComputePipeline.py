@@ -6,13 +6,14 @@ from typing import Any
 
 import sdl3 as sdl
 
+from Enums import ShaderFormat, to_sdl
 from Utils.Sdl import to_bytes
 
 
 @dataclass(slots=True)
 class ComputePipelineDescriptor:
     code: bytes
-    format: int = sdl.SDL_GPU_SHADERFORMAT_SPIRV
+    format: ShaderFormat | int = ShaderFormat.SPIRV
     entrypoint: str | bytes = "main"
     num_samplers: int = 0
     num_readonly_storage_textures: int = 0
@@ -33,7 +34,7 @@ class ComputePipelineDescriptor:
         info.code_size = len(self.code)
         info.code = ctypes.cast(code, ctypes.POINTER(ctypes.c_uint8))
         info.entrypoint = entrypoint
-        info.format = self.format
+        info.format = to_sdl(self.format)
         info.num_samplers = self.num_samplers
         info.num_readonly_storage_textures = self.num_readonly_storage_textures
         info.num_readonly_storage_buffers = self.num_readonly_storage_buffers

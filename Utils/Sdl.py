@@ -4,8 +4,10 @@ from typing import Any
 
 import sdl3 as sdl
 
+from Errors import RendererError
 
-class SdlError(RuntimeError):
+
+class SdlError(RendererError):
     pass
 
 

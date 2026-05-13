@@ -234,10 +234,6 @@ class ResourceManager:
         render_state = self.render_states.remove(handle)
         sdl.SDL_DestroyGPURenderState(render_state.handle)
 
-    def get_swapchain_texture_format(self, window: Any) -> int:
-        window_handle = getattr(window, "raw", getattr(window, "handle", window))
-        return sdl.SDL_GetGPUSwapchainTextureFormat(self.device, window_handle)
-
     def close(self) -> None:
         for handle in reversed(self.render_states.handles()):
             self.destroy_render_state(handle)

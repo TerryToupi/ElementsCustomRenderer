@@ -1,13 +1,12 @@
 from __future__ import annotations
 
 import argparse
-import ctypes
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
-import sdl3 as sdl
-
 from Device import Device
+from Enums import ShaderStage
 from ResourceManager import (
     GraphicsPipelineHandle,
     ResourceManager,
@@ -17,7 +16,8 @@ from Resources import (
     GraphicsPipelineDescriptor,
     ShaderDescriptor,
 )
-from Utils.Sdl import SdlError, check, error_message
+from Surface import Surface
+from Utils.Sdl import SdlError, check
 from Window import Window
 
 
@@ -48,6 +48,7 @@ class Application:
         self.config = config or ApplicationConfig()
         self.window: Window | None = None
         self.device: Device | None = None
+        self.surface: Surface | None = None
         self.resources: ResourceManager | None = None
         self.triangle_resources = TriangleResources()
         self.frame_count = 0
@@ -58,6 +59,7 @@ class Application:
         return (
             self.window is not None
             and self.device is not None
+            and self.surface is not None
             and self.resources is not None
         )
 
@@ -73,6 +75,7 @@ class Application:
         self.device = Device(debug_mode=self.config.debug_gpu)
         self.device.claim_window(self.window)
         self._window_claimed = True
+        self.surface = Surface(self.device, self.window)
         self.resources = ResourceManager(self.device)
         self._create_triangle_resources()
 
@@ -96,7 +99,7 @@ class Application:
                     break
 
                 if self.config.frame_delay_ms > 0:
-                    sdl.SDL_Delay(self.config.frame_delay_ms)
+                    time.sleep(self.config.frame_delay_ms / 1000)
         finally:
             self.shutdown()
 
@@ -112,65 +115,44 @@ class Application:
         if (
             self.device is None
             or self.window is None
+            or self.surface is None
             or self.resources is None
             or self.triangle_resources.pipeline is None
         ):
             return
 
-        command_buffer = check(
-            sdl.SDL_AcquireGPUCommandBuffer(self.device.raw),
-            "SDL_AcquireGPUCommandBuffer",
-        )
+        command_buffer = self.device.acquire_command_buffer()
 
-        swapchain_texture = sdl.LP_SDL_GPUTexture()
-        width = ctypes.c_uint32()
-        height = ctypes.c_uint32()
+        try:
+            render_image = self.surface.acquire(command_buffer)
+        except SdlError:
+            self.device.cancel_command_buffer(command_buffer)
+            raise
 
-        if not sdl.SDL_WaitAndAcquireGPUSwapchainTexture(
-            command_buffer,
-            self.window.raw,
-            ctypes.byref(swapchain_texture),
-            ctypes.byref(width),
-            ctypes.byref(height),
-        ):
-            sdl.SDL_CancelGPUCommandBuffer(command_buffer)
-            raise SdlError(
-                f"SDL_WaitAndAcquireGPUSwapchainTexture: {error_message()}"
-            )
-
-        if swapchain_texture:
-            color_target = sdl.SDL_GPUColorTargetInfo()
-            color_target.texture = swapchain_texture
-            color_target.clear_color = sdl.SDL_FColor(0.02, 0.02, 0.04, 1.0)
-            color_target.load_op = sdl.SDL_GPU_LOADOP_CLEAR
-            color_target.store_op = sdl.SDL_GPU_STOREOP_STORE
-
-            render_pass = check(
-                sdl.SDL_BeginGPURenderPass(
-                    command_buffer,
-                    ctypes.byref(color_target),
-                    1,
-                    None,
-                ),
-                "SDL_BeginGPURenderPass",
+        if render_image is not None:
+            render_pass = self.surface.begin_render_pass(
+                command_buffer,
+                clear_color=(0.02, 0.02, 0.04, 1.0),
             )
             pipeline = self.resources.get_graphics_pipeline(
                 self.triangle_resources.pipeline
             )
-            sdl.SDL_BindGPUGraphicsPipeline(render_pass, pipeline.handle)
-            sdl.SDL_DrawGPUPrimitives(render_pass, 3, 1, 0, 0)
-            sdl.SDL_EndGPURenderPass(render_pass)
+            self.device.bind_graphics_pipeline(render_pass, pipeline)
+            self.device.draw_primitives(render_pass, 3)
+            self.device.end_render_pass(render_pass)
 
-        check(
-            sdl.SDL_SubmitGPUCommandBuffer(command_buffer),
-            "SDL_SubmitGPUCommandBuffer",
-        )
+        try:
+            self.device.submit_command_buffer(command_buffer)
+        finally:
+            self.surface.clear_current_image()
 
     def shutdown(self) -> None:
         if self.resources is not None:
             self.resources.close()
             self.resources = None
             self.triangle_resources = TriangleResources()
+
+        self.surface = None
 
         if self._window_claimed and self.device is not None and self.window is not None:
             self.device.release_window(self.window)
@@ -185,19 +167,19 @@ class Application:
             self.window = None
 
     def _create_triangle_resources(self) -> None:
-        if self.resources is None or self.window is None:
+        if self.resources is None or self.surface is None:
             raise RuntimeError("resource manager is not initialized")
 
         vertex_shader = self.resources.create_shader(
             self._load_shader(
                 TRIANGLE_VERTEX_SHADER,
-                sdl.SDL_GPU_SHADERSTAGE_VERTEX,
+                ShaderStage.VERTEX,
             )
         )
         fragment_shader = self.resources.create_shader(
             self._load_shader(
                 TRIANGLE_FRAGMENT_SHADER,
-                sdl.SDL_GPU_SHADERSTAGE_FRAGMENT,
+                ShaderStage.FRAGMENT,
             )
         )
         pipeline = self.resources.create_graphics_pipeline(
@@ -205,7 +187,7 @@ class Application:
                 vertex_shader=vertex_shader,
                 fragment_shader=fragment_shader,
                 color_target_formats=(
-                    self.resources.get_swapchain_texture_format(self.window),
+                    self.surface.texture_format,
                 ),
             )
         )
@@ -217,7 +199,7 @@ class Application:
         )
 
     @staticmethod
-    def _load_shader(path: Path, stage: int) -> ShaderDescriptor:
+    def _load_shader(path: Path, stage: ShaderStage) -> ShaderDescriptor:
         return ShaderDescriptor.from_base64(path.read_text(encoding="ascii"), stage)
 
     def _running(self) -> bool:

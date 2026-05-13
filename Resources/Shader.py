@@ -7,14 +7,15 @@ from typing import Any
 
 import sdl3 as sdl
 
+from Enums import ShaderFormat, ShaderStage, to_sdl
 from Utils.Sdl import to_bytes
 
 
 @dataclass(slots=True)
 class ShaderDescriptor:
     code: bytes
-    stage: int
-    format: int = sdl.SDL_GPU_SHADERFORMAT_SPIRV
+    stage: ShaderStage | int
+    format: ShaderFormat | int = ShaderFormat.SPIRV
     entrypoint: str | bytes = "main"
     num_samplers: int = 0
     num_storage_textures: int = 0
@@ -26,8 +27,8 @@ class ShaderDescriptor:
     def from_base64(
         cls,
         data_b64: str,
-        stage: int,
-        format: int = sdl.SDL_GPU_SHADERFORMAT_SPIRV,
+        stage: ShaderStage | int,
+        format: ShaderFormat | int = ShaderFormat.SPIRV,
         entrypoint: str | bytes = "main",
     ) -> "ShaderDescriptor":
         return cls(
@@ -45,8 +46,8 @@ class ShaderDescriptor:
         info.code_size = len(self.code)
         info.code = ctypes.cast(code, ctypes.POINTER(ctypes.c_uint8))
         info.entrypoint = entrypoint
-        info.format = self.format
-        info.stage = self.stage
+        info.format = to_sdl(self.format)
+        info.stage = to_sdl(self.stage)
         info.num_samplers = self.num_samplers
         info.num_storage_textures = self.num_storage_textures
         info.num_storage_buffers = self.num_storage_buffers

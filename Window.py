@@ -4,10 +4,11 @@ import ctypes
 
 import sdl3 as sdl
 
+from Enums import WindowFlag, to_sdl
 from Utils.Sdl import check, to_bytes
 
 
-DEFAULT_WINDOW_FLAGS = sdl.SDL_WINDOW_RESIZABLE | sdl.SDL_WINDOW_HIGH_PIXEL_DENSITY
+DEFAULT_WINDOW_FLAGS = WindowFlag.RESIZABLE | WindowFlag.HIGH_PIXEL_DENSITY
 
 
 class Window:
@@ -16,7 +17,7 @@ class Window:
         title: str | bytes = "PySDL3 Window",
         width: int = 640,
         height: int = 480,
-        flags: int = DEFAULT_WINDOW_FLAGS,
+        flags: WindowFlag | int = DEFAULT_WINDOW_FLAGS,
         initialize_sdl: bool = True,
     ):
         self.handle = None
@@ -32,7 +33,7 @@ class Window:
                 to_bytes(title),
                 width,
                 height,
-                flags,
+                to_sdl(flags),
             ),
             "SDL_CreateWindow",
         )
