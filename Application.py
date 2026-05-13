@@ -5,8 +5,9 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from Device import Device
+from Device import Device, GpuRenderPassDesc
 from Enums import ShaderStage
+from Errors import RendererError
 from ResourceManager import (
     GraphicsPipelineHandle,
     ResourceManager,
@@ -17,7 +18,6 @@ from Resources import (
     ShaderDescriptor,
 )
 from Surface import Surface
-from Utils.Sdl import SdlError, check
 from Window import Window
 
 
@@ -124,25 +124,26 @@ class Application:
         command_buffer = self.device.acquire_command_buffer()
 
         try:
-            render_image = self.surface.acquire(command_buffer)
-        except SdlError:
+            command_buffer.acquire_surface_image(self.surface)
+        except RendererError:
             self.device.cancel_command_buffer(command_buffer)
             raise
 
-        if render_image is not None:
-            render_pass = self.surface.begin_render_pass(
-                command_buffer,
+        command_buffer.begin_render_pass(
+            GpuRenderPassDesc(
+                surface=self.surface,
                 clear_color=(0.02, 0.02, 0.04, 1.0),
             )
-            pipeline = self.resources.get_graphics_pipeline(
-                self.triangle_resources.pipeline
-            )
-            self.device.bind_graphics_pipeline(render_pass, pipeline)
-            self.device.draw_primitives(render_pass, 3)
-            self.device.end_render_pass(render_pass)
+        )
+        pipeline = self.resources.get_graphics_pipeline(
+            self.triangle_resources.pipeline
+        )
+        command_buffer.bind_graphics_pipeline(pipeline)
+        command_buffer.draw_primitives(3)
+        command_buffer.end_render_pass()
 
         try:
-            self.device.submit_command_buffer(command_buffer)
+            command_buffer.submit()
         finally:
             self.surface.clear_current_image()
 
@@ -248,7 +249,7 @@ def main() -> int:
 
     try:
         Application(config).run()
-    except SdlError as exc:
+    except RendererError as exc:
         print(exc)
         return 1
 
