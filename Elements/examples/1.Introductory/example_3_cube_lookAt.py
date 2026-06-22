@@ -116,6 +116,7 @@ scene.init(windowWidth = winWidth, windowHeight = winHeight, windowTitle = "A Cu
 scene.world.traverse_visit(initUpdate, scene.world.root)
 
 while running:
+    # Poll RHI events before recording GPU work for this frame.
     scene.renderWindow.begin_frame()
     for event in scene.renderWindow.poll_events():
         if isinstance(event, (QuitEvent, WindowCloseEvent)):
@@ -124,7 +125,9 @@ while running:
         running = False
     if not running:
         break
+    # display() acquires the swapchain texture and starts the render pass.
     scene.renderWindow.display()
+    # RenderRHISystem records draw commands for each RHIMesh in the scene.
     scene.world.traverse_visit(renderUpdate, scene.world.root)
     scene.render_post()
     scene.renderWindow.end_frame()

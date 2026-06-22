@@ -50,6 +50,7 @@ class OrbitCameraController:
         self.panning = False
 
     def update(self, events, input_state: InputState, dt):
+        # Mouse events describe one-frame actions: button down/up, motion, wheel.
         for event in events:
             if isinstance(event, MouseButtonDownEvent):
                 self.orbiting = event.button is MouseButton.RIGHT
@@ -70,6 +71,7 @@ class OrbitCameraController:
             elif isinstance(event, MouseWheelEvent):
                 self.distance *= pow(0.88, event.y)
 
+        # InputState describes keys that are held across frames.
         self.yaw += self._axis(input_state, "right", "left") * 70.0 * dt
         self.pitch += self._axis(input_state, "up", "down") * 70.0 * dt
         self.distance *= pow(
@@ -408,6 +410,8 @@ last_time = start_time
 running = True
 
 while running:
+    # Poll events once at the start of the frame. The camera and quit logic
+    # both use the same event list and input state.
     scene.renderWindow.begin_frame()
     events = scene.renderWindow.poll_events()
     for event in events:
@@ -417,12 +421,14 @@ while running:
         running = False
     if not running:
         break
+    # display() acquires the swapchain texture and starts the render pass.
     scene.renderWindow.display()
 
     now = time.perf_counter()
     dt = min(now - last_time, 1.0 / 20.0)
     last_time = now
 
+    # Update camera matrices on the CPU before material uniforms are uploaded.
     camera.update(events, scene.renderWindow.input, dt)
     view = camera.view_matrix()
     eye = camera.eye_position()
@@ -445,6 +451,8 @@ while running:
     )
 
     for item in render_items:
+        # Each meshlet is drawn as its own RHIMesh. The offset makes the
+        # meshlet partitions visible while preserving the original torus shape.
         offset = item["meshlet"]["explode_dir"] * explode_amount
         model = util.translate(offset[0], offset[1], offset[2]) @ base_model
 
@@ -461,6 +469,7 @@ while running:
             "modelViewProj", projMat @ view @ model
         )
 
+    # RenderRHISystem records the GPU draw commands for this frame.
     scene.world.traverse_visit(renderUpdate, scene.world.root)
     scene.render_post()
     scene.renderWindow.end_frame()

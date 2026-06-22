@@ -200,6 +200,7 @@ model_teapot = util.scale(0.1) @ util.translate(0.0,0.5,0.0)
 
 
 while running:
+    # Poll RHI events before recording GPU work for this frame.
     scene.renderWindow.begin_frame()
     for event in scene.renderWindow.poll_events():
         if isinstance(event, (QuitEvent, WindowCloseEvent)):
@@ -208,7 +209,9 @@ while running:
         running = False
     if not running:
         break
+    # display() acquires the swapchain texture and starts the render pass.
     scene.renderWindow.display()
+    # TransformSystem updates matrices before RenderRHISystem records draw commands.
     scene.world.traverse_visit(transUpdate, scene.world.root)
     view =  gWindow._myCamera
 

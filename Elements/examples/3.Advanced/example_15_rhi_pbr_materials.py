@@ -184,6 +184,7 @@ start_time = time.perf_counter()
 running = True
 
 while running:
+    # Poll RHI events first; after this, input state is valid for this frame.
     scene.renderWindow.begin_frame()
     for event in scene.renderWindow.poll_events():
         if isinstance(event, (QuitEvent, WindowCloseEvent)):
@@ -192,8 +193,10 @@ while running:
         running = False
     if not running:
         break
+    # display() acquires the swapchain texture and starts the render pass.
     scene.renderWindow.display()
 
+    # CPU-side animation: move the point light before uniforms are uploaded.
     elapsed = time.perf_counter() - start_time
     light_position = util.vec(
         3.8 * math.cos(elapsed * 0.7),
@@ -227,6 +230,7 @@ while running:
     light_marker_material.setUniformVariable("lightColor", util.vec(1.0, 0.96, 0.88))
     light_marker_material.setUniformVariable("lightIntensity", 16.0)
 
+    # RenderRHISystem reads RHIMesh + Material components and records draw calls.
     scene.world.traverse_visit(renderUpdate, scene.world.root)
     scene.render_post()
     scene.renderWindow.end_frame()

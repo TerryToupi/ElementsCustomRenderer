@@ -218,6 +218,7 @@ model_terrain = terrain.getChild(0).trs # notice that terrain.getChild(0) == ter
 model_axes = axes_trans.trs
 
 while running:
+    # Poll RHI events before recording GPU work for this frame.
     scene.renderWindow.begin_frame()
     for event in scene.renderWindow.poll_events():
         if isinstance(event, (QuitEvent, WindowCloseEvent)):
@@ -226,7 +227,9 @@ while running:
         running = False
     if not running:
         break
+    # display() acquires the swapchain texture and starts the render pass.
     scene.renderWindow.display()
+    # Systems update CPU-side transforms and record RHI draw commands.
     scene.world.traverse_visit(renderUpdate, scene.world.root)
     scene.world.traverse_visit_pre_camera(camUpdate, orthoCam)
     scene.world.traverse_visit(camUpdate, scene.world.root)

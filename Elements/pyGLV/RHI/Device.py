@@ -180,6 +180,10 @@ class Device:
             if command_buffer == self.command_buffer:
                 self.command_buffer = None
 
+    def wait_idle(self) -> None:
+        # Useful for examples that read GPU data back immediately after submit.
+        check(sdl.SDL_WaitForGPUIdle(self.raw), "SDL_WaitForGPUIdle")
+
     def acquire_surface_image(self, surface: Any):
         return self.current_command_buffer().acquire_surface_image(surface)
 
@@ -188,6 +192,9 @@ class Device:
         storage_buffers: Sequence[Any] = (),
     ):
         return self.current_command_buffer().begin_compute_pass(storage_buffers)
+
+    def bind_compute_pipeline(self, pipeline: Any) -> None:
+        self.current_command_buffer().bind_compute_pipeline(pipeline)
 
     def end_compute_pass(self) -> None:
         self.current_command_buffer().end_compute_pass()
@@ -362,6 +369,8 @@ class Device:
                 )
             elif command.name == "end_compute_pass":
                 self._end_compute_pass_raw()
+            elif command.name == "bind_compute_pipeline":
+                self._bind_compute_pipeline_raw(*command.args)
             elif command.name == "dispatch":
                 self._dispatch_raw(*command.args)
             elif command.name == "dispatch_indirect":
@@ -448,6 +457,16 @@ class Device:
             return
         sdl.SDL_EndGPUComputePass(self.compute_pass)
         self.compute_pass = None
+
+    def _bind_compute_pipeline_raw(self, pipeline: Any) -> None:
+        # Replay the recorded high-level RHI command as the SDL_GPU call.
+        compute_pass = self._current_compute_pass_raw()
+        pipeline_handle = getattr(
+            pipeline,
+            "raw",
+            getattr(pipeline, "handle", pipeline),
+        )
+        sdl.SDL_BindGPUComputePipeline(compute_pass, pipeline_handle)
 
     def _dispatch_raw(
         self,

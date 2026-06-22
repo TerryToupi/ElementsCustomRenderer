@@ -104,6 +104,20 @@ class CommandBuffer:
     gpuBeginRenderPass = begin_render_pass
     gpuEndRenderPass = end_render_pass
 
+    def bind_compute_pipeline(
+        self,
+        compute_pass_or_pipeline: Any,
+        pipeline: Any | None = None,
+    ) -> None:
+        # Compute work is explicit: begin a compute pass, bind one compute
+        # pipeline, then dispatch workgroups.
+        if pipeline is None:
+            pipeline = compute_pass_or_pipeline
+        else:
+            self._validate_recorded_compute_pass(compute_pass_or_pipeline)
+        self.current_compute_pass()
+        self.record("bind_compute_pipeline", pipeline)
+
     def gpu_draw_indexed_instanced(
         self,
         vertex_data_gpu: Any | None,
@@ -283,6 +297,14 @@ class CommandBuffer:
             or render_pass.command_buffer != self
         ):
             raise RendererError("render pass must belong to this command buffer")
+
+    def _validate_recorded_compute_pass(self, compute_pass: Any) -> None:
+        # This catches accidental mixing of command buffers in teaching examples.
+        if (
+            not isinstance(compute_pass, RecordedComputePass)
+            or compute_pass.command_buffer != self
+        ):
+            raise RendererError("compute pass must belong to this command buffer")
 
     @staticmethod
     def _buffer_with_stride(value: Any | None, stride: int):

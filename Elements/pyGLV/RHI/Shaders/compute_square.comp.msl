@@ -1,0 +1,10 @@
+#include <metal_stdlib>
+
+using namespace metal;
+
+kernel void main0(device uint* values [[buffer(0)]],
+                  uint3 thread_id [[thread_position_in_grid]])
+{
+    uint index = thread_id.x;
+    values[index] = index * index;
+}

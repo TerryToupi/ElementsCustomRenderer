@@ -18,6 +18,8 @@ These examples are suitable for introduction to Computer Graphics and Elements.
   If *a single* TRS component (except the camera) is toggled in the ECSS graph, you may alter the TRS via the Translation/Rotation/Scale properties on top.
   * [Example 6](./1.Introductory/example_6_import_objects.py): A scene with a teapot. Camera can be altered via the GUI or the mouse. The example demonstrated the import of objects from `.obj` files.
   * [Example 7](./1.Introductory/example_7_rhi_input_events.py): A basic RHI window showing the engine-level event and input-state API for keyboard, mouse, and window events.
+  * [Example 8](./1.Introductory/example_8_rhi_graphics_pipeline_basic.py): A minimal RHI graphics pipeline that creates shaders, a graphics pipeline, and draws one triangle without ECS.
+  * [Example 9](./1.Introductory/example_9_rhi_compute_pipeline_basic.py): A minimal RHI compute pipeline that writes values into a GPU buffer and reads them back to Python.
   
 ## 2.Intermediate examples
 

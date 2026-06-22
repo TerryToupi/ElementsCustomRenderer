@@ -148,6 +148,87 @@ class ResourceManager:
         finally:
             self.destroy_transfer_buffer(transfer_handle)
 
+    def download_buffer(
+        self,
+        handle: BufferHandle | Any,
+        size: int | None = None,
+        offset: int = 0,
+    ) -> bytes:
+        # Readback is a two-step GPU operation:
+        # 1. copy GPU buffer -> download transfer buffer,
+        # 2. map the transfer buffer so Python can read the bytes.
+        buffer = self.get_buffer(handle) if isinstance(handle, PoolHandle) else handle
+        byte_count = int(
+            size if size is not None else buffer.descriptor.size - offset
+        )
+        if byte_count <= 0:
+            return b""
+
+        transfer_handle = self.create_transfer_buffer(
+            TransferBufferDescriptor(
+                size=byte_count,
+                usage=TransferBufferUsage.DOWNLOAD,
+            )
+        )
+        transfer = self.get_transfer_buffer(transfer_handle)
+        command_buffer = None
+        fence = None
+
+        try:
+            command_buffer = check(
+                sdl.SDL_AcquireGPUCommandBuffer(self.device),
+                "SDL_AcquireGPUCommandBuffer",
+            )
+            copy_pass = check(
+                sdl.SDL_BeginGPUCopyPass(command_buffer),
+                "SDL_BeginGPUCopyPass",
+            )
+
+            source = sdl.SDL_GPUBufferRegion()
+            source.buffer = self._buffer_handle(handle)
+            source.offset = offset
+            source.size = byte_count
+
+            destination = sdl.SDL_GPUTransferBufferLocation()
+            destination.transfer_buffer = transfer.handle
+            destination.offset = 0
+
+            sdl.SDL_DownloadFromGPUBuffer(
+                copy_pass,
+                ctypes.byref(source),
+                ctypes.byref(destination),
+            )
+            sdl.SDL_EndGPUCopyPass(copy_pass)
+
+            fence = check(
+                sdl.SDL_SubmitGPUCommandBufferAndAcquireFence(command_buffer),
+                "SDL_SubmitGPUCommandBufferAndAcquireFence",
+            )
+            command_buffer = None
+
+            fences = (type(fence) * 1)(fence)
+            check(
+                sdl.SDL_WaitForGPUFences(self.device, True, fences, 1),
+                "SDL_WaitForGPUFences",
+            )
+
+            mapped = check(
+                sdl.SDL_MapGPUTransferBuffer(self.device, transfer.handle, False),
+                "SDL_MapGPUTransferBuffer",
+            )
+            try:
+                return ctypes.string_at(mapped, byte_count)
+            finally:
+                sdl.SDL_UnmapGPUTransferBuffer(self.device, transfer.handle)
+        except Exception:
+            if command_buffer is not None:
+                sdl.SDL_CancelGPUCommandBuffer(command_buffer)
+            raise
+        finally:
+            if fence is not None:
+                sdl.SDL_ReleaseGPUFence(self.device, fence)
+            self.destroy_transfer_buffer(transfer_handle)
+
     def destroy_buffer(self, handle: BufferHandle) -> None:
         buffer = self.buffers.remove(handle)
         sdl.SDL_ReleaseGPUBuffer(self.device, buffer.handle)
