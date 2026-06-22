@@ -43,6 +43,34 @@ Advanced examples for USD scenes, obj-importer and more.
   * [Example 15](./3.Advanced/example_15_rhi_pbr_materials.py) A scene using the RHI rendering system with physically based materials. Rows vary metallic, columns vary roughness, and a moving point light shows the BRDF response.
   * [Example 16](./3.Advanced/example_16_rhi_pbr_camera_control.py) A PBR scene using the RHI rendering system with orbit, pan, and zoom camera controls.
   * [Example 17](./3.Advanced/example_17_rhi_meshlet_imitation.py) A meshlet-style RHI scene that partitions a torus into small triangle clusters, renders each cluster as a separate draw, and visualizes local bounds.
+  * [Example 18](./3.Advanced/example_18_rhi_compute_particles.py) A compute-driven particle simulation where a compute shader updates a GPU storage buffer and the graphics pipeline renders the same buffer.
+  * [Example 19](./3.Advanced/example_19_rhi_black_hole_pathtraced_volume.py) A compute path-traced black-hole volume where a compute shader writes an HDR texture and a graphics pipeline tone-maps it to the window.
+
+### 03 Compute Particles
+
+This example demonstrates a GPU-driven simulation:
+
+1. Particle data starts on the CPU.
+2. The data is uploaded once to a GPU storage buffer.
+3. A compute shader updates every particle in parallel.
+4. The graphics pipeline reads the updated particle buffer.
+5. The particles are rendered to the window.
+
+This is useful because it shows how compute shaders can do simulation work and
+how graphics shaders can visualize the result without copying data back to the CPU.
+
+### 04 Compute Path-Traced Black Hole
+
+This example demonstrates a GPU image-generation workflow:
+
+1. Python creates two HDR GPU textures.
+2. A compute shader ray-marches a black hole, accretion disk, and star field.
+3. The compute shader writes the current frame and temporal history textures.
+4. A graphics pipeline draws one fullscreen triangle.
+5. The fragment shader samples the HDR texture and tone-maps it to the window.
+
+This is useful because it shows how compute shaders can generate an entire
+image and how a small graphics pass can present that image without CPU readback.
 
 
 ## 4.Experimental examples

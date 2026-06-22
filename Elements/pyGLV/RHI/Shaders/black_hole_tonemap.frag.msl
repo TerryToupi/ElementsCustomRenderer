@@ -1,0 +1,32 @@
+#include <metal_stdlib>
+
+using namespace metal;
+
+struct FragmentIn
+{
+    float2 uv [[user(locn0)]];
+};
+
+float3 filmicTonemap(float3 color)
+{
+    color = max(color, float3(0.0f));
+    color = color * (2.51f * color + 0.03f) / (color * (2.43f * color + 0.59f) + 0.14f);
+    return pow(clamp(color, float3(0.0f), float3(1.0f)), float3(1.0f / 2.2f));
+}
+
+fragment float4 main0(FragmentIn in [[stage_in]],
+                      texture2d<float> hdrImage [[texture(0)]],
+                      sampler hdrSampler [[sampler(0)]])
+{
+    float2 texel = 1.0f / float2(hdrImage.get_width(), hdrImage.get_height());
+    float3 hdr = hdrImage.sample(hdrSampler, in.uv).rgb;
+    float3 bloom = float3(0.0f);
+
+    bloom += hdrImage.sample(hdrSampler, in.uv + texel * float2(2.0f, 0.0f)).rgb;
+    bloom += hdrImage.sample(hdrSampler, in.uv + texel * float2(-2.0f, 0.0f)).rgb;
+    bloom += hdrImage.sample(hdrSampler, in.uv + texel * float2(0.0f, 2.0f)).rgb;
+    bloom += hdrImage.sample(hdrSampler, in.uv + texel * float2(0.0f, -2.0f)).rgb;
+    bloom *= 0.035f;
+
+    return float4(filmicTonemap(hdr + bloom), 1.0f);
+}

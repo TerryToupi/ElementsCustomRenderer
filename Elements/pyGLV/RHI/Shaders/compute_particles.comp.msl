@@ -1,0 +1,54 @@
+#include <metal_stdlib>
+
+using namespace metal;
+
+struct Particle
+{
+    float4 position;
+    float4 velocity;
+};
+
+struct SimulationBlock
+{
+    float4 values;
+};
+
+kernel void main0(device Particle* particles [[buffer(0)]],
+                  constant SimulationBlock& sim [[buffer(1)]],
+                  uint3 threadID [[thread_position_in_grid]])
+{
+    uint index = threadID.x;
+    if (index >= uint(sim.values.z))
+    {
+        return;
+    }
+
+    Particle particle = particles[index];
+    float2 position = particle.position.xy;
+    float2 velocity = particle.velocity.xy;
+
+    float2 toCenter = -position;
+    float distanceToCenter = max(length(toCenter), 0.001f);
+    float2 directionToCenter = toCenter / distanceToCenter;
+    float2 tangent = float2(-directionToCenter.y, directionToCenter.x);
+
+    float dt = sim.values.x;
+    float attraction = 0.45f;
+    float swirl = 0.95f;
+    float damping = 0.992f;
+
+    velocity += directionToCenter * attraction * dt;
+    velocity += tangent * swirl * dt;
+    velocity *= damping;
+    velocity = clamp(velocity, float2(-1.4f), float2(1.4f));
+    position += velocity * dt;
+
+    if (position.x < -1.15f) position.x = 1.15f;
+    if (position.x > 1.15f) position.x = -1.15f;
+    if (position.y < -1.15f) position.y = 1.15f;
+    if (position.y > 1.15f) position.y = -1.15f;
+
+    particle.position = float4(position, 0.0f, 1.0f);
+    particle.velocity = float4(velocity, 0.0f, 0.0f);
+    particles[index] = particle;
+}

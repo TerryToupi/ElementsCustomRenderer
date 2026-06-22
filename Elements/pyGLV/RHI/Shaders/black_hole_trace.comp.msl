@@ -1,0 +1,157 @@
+#include <metal_stdlib>
+
+using namespace metal;
+
+struct TraceUniforms
+{
+    float4 cameraPositionTime;
+    float4 cameraForwardFrame;
+    float4 cameraRightExposure;
+    float4 cameraUpSettings;
+};
+
+float hash13(float3 p)
+{
+    p = fract(p * 0.1031f);
+    p += dot(p, p.yzx + 33.33f);
+    return fract((p.x + p.y) * p.z);
+}
+
+float noise3(float3 p)
+{
+    float3 i = floor(p);
+    float3 f = fract(p);
+    f = f * f * (3.0f - 2.0f * f);
+
+    float n000 = hash13(i + float3(0.0f, 0.0f, 0.0f));
+    float n100 = hash13(i + float3(1.0f, 0.0f, 0.0f));
+    float n010 = hash13(i + float3(0.0f, 1.0f, 0.0f));
+    float n110 = hash13(i + float3(1.0f, 1.0f, 0.0f));
+    float n001 = hash13(i + float3(0.0f, 0.0f, 1.0f));
+    float n101 = hash13(i + float3(1.0f, 0.0f, 1.0f));
+    float n011 = hash13(i + float3(0.0f, 1.0f, 1.0f));
+    float n111 = hash13(i + float3(1.0f, 1.0f, 1.0f));
+
+    float nx00 = mix(n000, n100, f.x);
+    float nx10 = mix(n010, n110, f.x);
+    float nx01 = mix(n001, n101, f.x);
+    float nx11 = mix(n011, n111, f.x);
+    float nxy0 = mix(nx00, nx10, f.y);
+    float nxy1 = mix(nx01, nx11, f.y);
+    return mix(nxy0, nxy1, f.z);
+}
+
+float diskDensity(float3 p)
+{
+    float radius = length(p.xz);
+    float disk = smoothstep(5.9f, 2.2f, radius) * smoothstep(1.15f, 1.8f, radius);
+    float height = exp(-abs(p.y) * 7.0f);
+    float bands = 0.65f + 0.35f * sin(radius * 18.0f - atan2(p.z, p.x) * 5.0f);
+    float turbulence = 0.65f + 0.55f * noise3(p * float3(2.2f, 8.0f, 2.2f));
+    return disk * height * bands * turbulence;
+}
+
+float3 diskColor(float radius, float side)
+{
+    float hot = smoothstep(5.2f, 1.4f, radius);
+    float3 outer = float3(1.0f, 0.32f, 0.07f);
+    float3 inner = float3(1.0f, 0.92f, 0.55f);
+    float3 blueShift = side > 0.0f ? float3(0.6f, 0.82f, 1.3f) : float3(1.35f, 0.72f, 0.48f);
+    return mix(outer, inner, hot) * blueShift;
+}
+
+float3 starField(float3 rayDir)
+{
+    float3 cell = floor(rayDir * 420.0f);
+    float star = smoothstep(0.997f, 1.0f, hash13(cell));
+    float milky = pow(max(0.0f, 1.0f - abs(rayDir.y + 0.18f) * 2.8f), 3.0f);
+    return float3(star * 2.2f) + float3(0.03f, 0.05f, 0.08f) + milky * float3(0.08f, 0.10f, 0.16f);
+}
+
+float3 traceBlackHole(float3 origin, float3 direction, float2 pixel, uint frame)
+{
+    float3 position = origin;
+    float3 rayDir = direction;
+    float3 color = float3(0.0f);
+    float transmittance = 1.0f;
+
+    float jitter = hash13(float3(pixel, float(frame))) - 0.5f;
+    float stepSize = 0.055f + jitter * 0.012f;
+
+    for (int stepIndex = 0; stepIndex < 150; ++stepIndex)
+    {
+        float radius = length(position);
+        if (radius < 0.92f)
+        {
+            transmittance = 0.0f;
+            break;
+        }
+        if (radius > 18.0f)
+        {
+            break;
+        }
+
+        float gravity = 0.020f / max(radius * radius * radius, 0.05f);
+        rayDir = normalize(rayDir - position * gravity * stepSize);
+        position += rayDir * stepSize * (1.0f + radius * 0.09f);
+
+        float density = diskDensity(position);
+        if (density > 0.002f)
+        {
+            float diskRadius = length(position.xz);
+            float side = dot(rayDir, normalize(float3(-position.z, 0.0f, position.x)));
+            float3 emission = diskColor(diskRadius, side) * density * 0.055f;
+            float lensGlow = 1.0f + 0.9f / max(abs(position.y) + 0.2f, 0.2f);
+            color += transmittance * emission * lensGlow;
+            transmittance *= exp(-density * 0.025f);
+        }
+    }
+
+    color += transmittance * starField(rayDir);
+
+    float halo = exp(-abs(dot(rayDir, normalize(-origin))) * 22.0f);
+    color += float3(1.0f, 0.55f, 0.15f) * halo * 0.08f;
+    return color;
+}
+
+kernel void main0(texture2d<float, access::read_write> outputImage [[texture(0)]],
+                  texture2d<float, access::read_write> historyImage [[texture(1)]],
+                  constant TraceUniforms& uniforms [[buffer(0)]],
+                  uint3 threadID [[thread_position_in_grid]])
+{
+    uint2 pixel = threadID.xy;
+    uint2 imageSizePixels = uint2(outputImage.get_width(), outputImage.get_height());
+    if (pixel.x >= imageSizePixels.x || pixel.y >= imageSizePixels.y)
+    {
+        return;
+    }
+
+    float2 resolution = float2(imageSizePixels);
+    float2 uv = (float2(pixel) + float2(0.5f)) / resolution;
+    float2 screen = uv * 2.0f - 1.0f;
+    screen.x *= resolution.x / resolution.y;
+
+    uint frame = uint(max(uniforms.cameraForwardFrame.w, 1.0f));
+    float exposure = uniforms.cameraRightExposure.w;
+    float accumulationEnabled = uniforms.cameraUpSettings.x;
+
+    float3 cameraPosition = uniforms.cameraPositionTime.xyz;
+    float3 forward = normalize(uniforms.cameraForwardFrame.xyz);
+    float3 right = normalize(uniforms.cameraRightExposure.xyz);
+    float3 up = normalize(uniforms.cameraUpSettings.yzw);
+
+    float jitterX = hash13(float3(float2(pixel), float(frame) + 17.0f)) - 0.5f;
+    float jitterY = hash13(float3(float2(pixel.yx), float(frame) + 31.0f)) - 0.5f;
+    float2 jitter = float2(jitterX, jitterY) / resolution;
+    float3 rayDir = normalize(forward + right * (screen.x + jitter.x) + up * (screen.y + jitter.y));
+
+    float3 hdrColor = traceBlackHole(cameraPosition, rayDir, float2(pixel), frame) * exposure;
+
+    float4 previous = historyImage.read(pixel);
+    float sampleCount = clamp(float(frame), 1.0f, 96.0f);
+    float historyWeight = accumulationEnabled > 0.5f ? (sampleCount - 1.0f) / sampleCount : 0.0f;
+    float3 accumulated = mix(hdrColor, previous.rgb, historyWeight);
+
+    outputImage.write(float4(accumulated, 1.0f), pixel);
+    historyImage.write(float4(accumulated, 1.0f), pixel);
+}

@@ -49,6 +49,7 @@ class CommandBuffer:
     def begin_compute_pass(
         self,
         storage_buffers: Sequence[Any] = (),
+        storage_textures: Sequence[Any] = (),
     ) -> RecordedComputePass:
         self._ensure_recording()
         if self.compute_pass is not None:
@@ -57,7 +58,11 @@ class CommandBuffer:
             raise RendererError("cannot begin a compute pass inside a render pass")
 
         self.compute_pass = RecordedComputePass(self)
-        self.record("begin_compute_pass", tuple(storage_buffers))
+        self.record(
+            "begin_compute_pass",
+            tuple(storage_buffers),
+            tuple(storage_textures),
+        )
         return self.compute_pass
 
     def end_compute_pass(self) -> None:
@@ -117,6 +122,14 @@ class CommandBuffer:
             self._validate_recorded_compute_pass(compute_pass_or_pipeline)
         self.current_compute_pass()
         self.record("bind_compute_pipeline", pipeline)
+
+    def push_compute_uniform_data(
+        self,
+        slot_index: int,
+        data: bytes | bytearray | memoryview,
+    ) -> None:
+        self.current_compute_pass()
+        self.record("push_compute_uniform_data", slot_index, bytes(data))
 
     def gpu_draw_indexed_instanced(
         self,
@@ -213,6 +226,14 @@ class CommandBuffer:
     ) -> None:
         self.current_render_pass()
         self.record("bind_vertex_buffers", tuple(bindings), first_slot)
+
+    def bind_fragment_samplers(
+        self,
+        bindings: Sequence[tuple[Any, Any]],
+        first_slot: int = 0,
+    ) -> None:
+        self.current_render_pass()
+        self.record("bind_fragment_samplers", tuple(bindings), first_slot)
 
     def push_vertex_uniform_data(
         self,

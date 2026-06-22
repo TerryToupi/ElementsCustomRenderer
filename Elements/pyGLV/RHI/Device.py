@@ -190,11 +190,22 @@ class Device:
     def begin_compute_pass(
         self,
         storage_buffers: Sequence[Any] = (),
+        storage_textures: Sequence[Any] = (),
     ):
-        return self.current_command_buffer().begin_compute_pass(storage_buffers)
+        return self.current_command_buffer().begin_compute_pass(
+            storage_buffers,
+            storage_textures,
+        )
 
     def bind_compute_pipeline(self, pipeline: Any) -> None:
         self.current_command_buffer().bind_compute_pipeline(pipeline)
+
+    def push_compute_uniform_data(
+        self,
+        slot_index: int,
+        data: bytes | bytearray | memoryview,
+    ) -> None:
+        self.current_command_buffer().push_compute_uniform_data(slot_index, data)
 
     def end_compute_pass(self) -> None:
         self.current_command_buffer().end_compute_pass()
@@ -309,6 +320,13 @@ class Device:
     ) -> None:
         self.current_command_buffer().bind_vertex_buffers(bindings, first_slot)
 
+    def bind_fragment_samplers(
+        self,
+        bindings: Sequence[tuple[Any, Any]],
+        first_slot: int = 0,
+    ) -> None:
+        self.current_command_buffer().bind_fragment_samplers(bindings, first_slot)
+
     def push_vertex_uniform_data(
         self,
         slot_index: int,
@@ -366,11 +384,14 @@ class Device:
                 self.compute_pass = self._begin_compute_pass_raw(
                     sdl_command_buffer,
                     command.args[0],
+                    command.args[1],
                 )
             elif command.name == "end_compute_pass":
                 self._end_compute_pass_raw()
             elif command.name == "bind_compute_pipeline":
                 self._bind_compute_pipeline_raw(*command.args)
+            elif command.name == "push_compute_uniform_data":
+                self._push_compute_uniform_data_raw(sdl_command_buffer, *command.args)
             elif command.name == "dispatch":
                 self._dispatch_raw(*command.args)
             elif command.name == "dispatch_indirect":
@@ -408,6 +429,8 @@ class Device:
                 self._bind_graphics_pipeline_raw(*command.args)
             elif command.name == "bind_vertex_buffers":
                 self._bind_vertex_buffers_raw(*command.args)
+            elif command.name == "bind_fragment_samplers":
+                self._bind_fragment_samplers_raw(*command.args)
             elif command.name == "push_vertex_uniform_data":
                 self._push_vertex_uniform_data_raw(sdl_command_buffer, *command.args)
             elif command.name == "push_fragment_uniform_data":
@@ -424,30 +447,48 @@ class Device:
         self,
         sdl_command_buffer: Any,
         storage_buffers: Sequence[Any] = (),
+        storage_textures: Sequence[Any] = (),
     ):
         if self.compute_pass is not None:
             return self.compute_pass
         if self.render_pass is not None:
             raise RendererError("cannot begin a compute pass inside a render pass")
 
-        bindings = None
-        binding_count = 0
+        texture_bindings = None
+        texture_binding_count = 0
+        buffer_bindings = None
+        buffer_binding_count = 0
         keep_alive: list[Any] = []
+
+        if storage_textures:
+            texture_bindings = (
+                sdl.SDL_GPUStorageTextureReadWriteBinding * len(storage_textures)
+            )()
+            for index, texture in enumerate(storage_textures):
+                texture_bindings[index].texture = self._raw_handle(texture)
+                texture_bindings[index].mip_level = 0
+                texture_bindings[index].layer = 0
+                texture_bindings[index].cycle = False
+            texture_binding_count = len(storage_textures)
+            keep_alive.append(texture_bindings)
+
         if storage_buffers:
-            bindings = (sdl.SDL_GPUStorageBufferReadWriteBinding * len(storage_buffers))()
+            buffer_bindings = (
+                sdl.SDL_GPUStorageBufferReadWriteBinding * len(storage_buffers)
+            )()
             for index, buffer in enumerate(storage_buffers):
-                bindings[index].buffer = self._raw_handle(buffer)
-                bindings[index].cycle = False
-            binding_count = len(storage_buffers)
-            keep_alive.append(bindings)
+                buffer_bindings[index].buffer = self._raw_handle(buffer)
+                buffer_bindings[index].cycle = False
+            buffer_binding_count = len(storage_buffers)
+            keep_alive.append(buffer_bindings)
 
         return check(
             sdl.SDL_BeginGPUComputePass(
                 sdl_command_buffer,
-                None,
-                0,
-                bindings,
-                binding_count,
+                texture_bindings,
+                texture_binding_count,
+                buffer_bindings,
+                buffer_binding_count,
             ),
             "SDL_BeginGPUComputePass",
         )
@@ -467,6 +508,20 @@ class Device:
             getattr(pipeline, "handle", pipeline),
         )
         sdl.SDL_BindGPUComputePipeline(compute_pass, pipeline_handle)
+
+    @staticmethod
+    def _push_compute_uniform_data_raw(
+        sdl_command_buffer: Any,
+        slot_index: int,
+        data: bytes,
+    ) -> None:
+        payload = (ctypes.c_uint8 * len(data)).from_buffer_copy(data)
+        sdl.SDL_PushGPUComputeUniformData(
+            sdl_command_buffer,
+            slot_index,
+            ctypes.cast(payload, ctypes.c_void_p),
+            len(data),
+        )
 
     def _dispatch_raw(
         self,
@@ -578,6 +633,23 @@ class Device:
             sdl_bindings[index].buffer = buffer
             sdl_bindings[index].offset = offset
         sdl.SDL_BindGPUVertexBuffers(
+            render_pass,
+            first_slot,
+            sdl_bindings,
+            len(bindings),
+        )
+
+    def _bind_fragment_samplers_raw(
+        self,
+        bindings: Sequence[tuple[Any, Any]],
+        first_slot: int = 0,
+    ) -> None:
+        render_pass = self._current_render_pass_raw()
+        sdl_bindings = (sdl.SDL_GPUTextureSamplerBinding * len(bindings))()
+        for index, (texture, sampler) in enumerate(bindings):
+            sdl_bindings[index].texture = self._raw_handle(texture)
+            sdl_bindings[index].sampler = self._raw_handle(sampler)
+        sdl.SDL_BindGPUFragmentSamplers(
             render_pass,
             first_slot,
             sdl_bindings,

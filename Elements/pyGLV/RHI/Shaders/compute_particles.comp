@@ -1,0 +1,57 @@
+#version 450
+
+layout(local_size_x = 128, local_size_y = 1, local_size_z = 1) in;
+
+struct Particle
+{
+    vec4 position;
+    vec4 velocity;
+};
+
+layout(set = 0, binding = 0) buffer Particles
+{
+    Particle particles[];
+};
+
+layout(std140, set = 1, binding = 0) uniform SimulationBlock
+{
+    vec4 values; // x = dt, y = time, z = particle count, w = unused
+} sim;
+
+void main()
+{
+    uint index = gl_GlobalInvocationID.x;
+    if (index >= uint(sim.values.z))
+    {
+        return;
+    }
+
+    Particle particle = particles[index];
+    vec2 position = particle.position.xy;
+    vec2 velocity = particle.velocity.xy;
+
+    vec2 toCenter = -position;
+    float distanceToCenter = max(length(toCenter), 0.001);
+    vec2 directionToCenter = toCenter / distanceToCenter;
+    vec2 tangent = vec2(-directionToCenter.y, directionToCenter.x);
+
+    float dt = sim.values.x;
+    float attraction = 0.45;
+    float swirl = 0.95;
+    float damping = 0.992;
+
+    velocity += directionToCenter * attraction * dt;
+    velocity += tangent * swirl * dt;
+    velocity *= damping;
+    velocity = clamp(velocity, vec2(-1.4), vec2(1.4));
+    position += velocity * dt;
+
+    if (position.x < -1.15) position.x = 1.15;
+    if (position.x > 1.15) position.x = -1.15;
+    if (position.y < -1.15) position.y = 1.15;
+    if (position.y > 1.15) position.y = -1.15;
+
+    particle.position = vec4(position, 0.0, 1.0);
+    particle.velocity = vec4(velocity, 0.0, 0.0);
+    particles[index] = particle;
+}

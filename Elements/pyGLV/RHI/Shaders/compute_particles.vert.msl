@@ -1,0 +1,33 @@
+#include <metal_stdlib>
+
+using namespace metal;
+
+struct Particle
+{
+    float4 position;
+    float4 velocity;
+};
+
+struct VertexOut
+{
+    float4 color [[user(locn0)]];
+    float pointSize [[point_size]];
+    float4 position [[position]];
+};
+
+vertex VertexOut main0(device Particle* particles [[buffer(0)]],
+                       uint vertexID [[vertex_id]])
+{
+    Particle particle = particles[vertexID];
+    float2 velocity = particle.velocity.xy;
+
+    float speed = clamp(length(velocity) * 1.7f, 0.0f, 1.0f);
+    float3 slowColor = float3(0.18f, 0.55f, 1.0f);
+    float3 fastColor = float3(1.0f, 0.38f, 0.12f);
+
+    VertexOut out;
+    out.position = float4(particle.position.xy, 0.0f, 1.0f);
+    out.pointSize = 3.0f + speed * 3.0f;
+    out.color = float4(mix(slowColor, fastColor, speed), 0.92f);
+    return out;
+}
