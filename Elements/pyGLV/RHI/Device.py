@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ctypes
+import sys
 from dataclasses import dataclass
 from typing import Any, Sequence
 
@@ -24,10 +25,56 @@ class GpuRenderPassDesc:
     depth_store_op: StoreOp | int = StoreOp.DONT_CARE
 
 
+def default_shader_formats() -> ShaderFormat:
+    if sys.platform == "darwin":
+        return ShaderFormat.MSL
+    return ShaderFormat.SPIRV
+
+
+def preferred_shader_format(
+    shader_formats: ShaderFormat | int,
+    driver_name: str | None = None,
+) -> ShaderFormat:
+    if driver_name == "metal":
+        if _has_shader_format(shader_formats, ShaderFormat.MSL):
+            return ShaderFormat.MSL
+        if _has_shader_format(shader_formats, ShaderFormat.METALLIB):
+            return ShaderFormat.METALLIB
+    if driver_name == "vulkan" and _has_shader_format(
+        shader_formats,
+        ShaderFormat.SPIRV,
+    ):
+        return ShaderFormat.SPIRV
+    if driver_name == "direct3d12":
+        if _has_shader_format(shader_formats, ShaderFormat.DXIL):
+            return ShaderFormat.DXIL
+        if _has_shader_format(shader_formats, ShaderFormat.DXBC):
+            return ShaderFormat.DXBC
+
+    if _has_shader_format(shader_formats, ShaderFormat.MSL):
+        return ShaderFormat.MSL
+    if _has_shader_format(shader_formats, ShaderFormat.METALLIB):
+        return ShaderFormat.METALLIB
+    if _has_shader_format(shader_formats, ShaderFormat.SPIRV):
+        return ShaderFormat.SPIRV
+    if _has_shader_format(shader_formats, ShaderFormat.DXIL):
+        return ShaderFormat.DXIL
+    if _has_shader_format(shader_formats, ShaderFormat.DXBC):
+        return ShaderFormat.DXBC
+    return ShaderFormat.PRIVATE
+
+
+def _has_shader_format(
+    shader_formats: ShaderFormat | int,
+    candidate: ShaderFormat,
+) -> bool:
+    return bool(int(shader_formats) & int(candidate))
+
+
 class Device:
     def __init__(
         self,
-        shader_formats: ShaderFormat | int = ShaderFormat.SPIRV,
+        shader_formats: ShaderFormat | int | None = None,
         debug_mode: bool = True,
         driver_name: str | bytes | None = None,
     ):
@@ -35,13 +82,20 @@ class Device:
         self.command_buffer: CommandBuffer | None = None
         self.render_pass = None
         self.compute_pass = None
+        self.shader_formats = shader_formats or default_shader_formats()
+        self.shader_format = preferred_shader_format(self.shader_formats)
         self.handle = check(
             sdl.SDL_CreateGPUDevice(
-                to_sdl(shader_formats),
+                to_sdl(self.shader_formats),
                 debug_mode,
                 to_bytes(driver_name),
             ),
             "SDL_CreateGPUDevice",
+        )
+        self.driver_name = self._driver_name()
+        self.shader_format = preferred_shader_format(
+            self.shader_formats,
+            self.driver_name,
         )
 
     @property
@@ -49,6 +103,12 @@ class Device:
         if self.handle is None:
             raise RuntimeError("device is closed")
         return self.handle
+
+    def _driver_name(self) -> str | None:
+        name = sdl.SDL_GetGPUDeviceDriver(self.raw)
+        if not name:
+            return None
+        return name.decode("utf-8", errors="replace")
 
     def claim_window(self, window: Any) -> None:
         window_handle = getattr(window, "raw", getattr(window, "handle", window))

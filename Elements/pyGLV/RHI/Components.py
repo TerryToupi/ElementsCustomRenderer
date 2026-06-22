@@ -17,6 +17,7 @@ from .Enums import (
     CullMode,
     FillMode,
     PrimitiveType,
+    ShaderFormat,
     ShaderStage,
     TextureFormat,
     VertexElementFormat,
@@ -42,25 +43,48 @@ class BuiltInMaterial(Enum):
 class ShaderSpec:
     vertex_binary: str
     fragment_binary: str
+    vertex_msl_binary: str | None = None
+    fragment_msl_binary: str | None = None
     vertex_uniform_buffers: int = 0
     fragment_uniform_buffers: int = 0
+
+    def binary_for(
+        self,
+        stage: ShaderStage | int,
+        shader_format: ShaderFormat | int,
+    ) -> tuple[str, ShaderFormat, str]:
+        is_vertex = stage == ShaderStage.VERTEX
+        if shader_format == ShaderFormat.MSL:
+            binary = self.vertex_msl_binary if is_vertex else self.fragment_msl_binary
+            if binary is None:
+                raise RuntimeError("built-in RHI material has no MSL shader variant")
+            return binary, ShaderFormat.MSL, "main0"
+
+        binary = self.vertex_binary if is_vertex else self.fragment_binary
+        return binary, ShaderFormat.SPIRV, "main"
 
 
 BUILTIN_SHADERS = {
     BuiltInMaterial.COLOR: ShaderSpec(
         vertex_binary="color_mvp.vert.spv.b64",
         fragment_binary="color_mvp.frag.spv.b64",
+        vertex_msl_binary="color_mvp.vert.msl.b64",
+        fragment_msl_binary="color_mvp.frag.msl.b64",
         vertex_uniform_buffers=1,
     ),
     BuiltInMaterial.PHONG: ShaderSpec(
         vertex_binary="phong.vert.spv.b64",
         fragment_binary="phong.frag.spv.b64",
+        vertex_msl_binary="phong.vert.msl.b64",
+        fragment_msl_binary="phong.frag.msl.b64",
         vertex_uniform_buffers=1,
         fragment_uniform_buffers=1,
     ),
     BuiltInMaterial.PBR: ShaderSpec(
         vertex_binary="pbr.vert.spv.b64",
         fragment_binary="pbr.frag.spv.b64",
+        vertex_msl_binary="pbr.vert.msl.b64",
+        fragment_msl_binary="pbr.frag.msl.b64",
         vertex_uniform_buffers=1,
         fragment_uniform_buffers=1,
     ),
@@ -250,20 +274,33 @@ class Material(Component):
     def prepare(self, context, mesh: RHIMesh):
         resources = context.resource_manager
         spec = BUILTIN_SHADERS[self.shader]
+        shader_format = getattr(context.device, "shader_format", ShaderFormat.SPIRV)
 
         if self.vertex_shader_handle is None:
+            binary, binary_format, entrypoint = spec.binary_for(
+                ShaderStage.VERTEX,
+                shader_format,
+            )
             self.vertex_shader_handle = resources.create_shader(
                 ShaderDescriptor.from_base64(
-                    _read_shader(spec.vertex_binary),
+                    _read_shader(binary),
                     stage=ShaderStage.VERTEX,
+                    format=binary_format,
+                    entrypoint=entrypoint,
                     num_uniform_buffers=spec.vertex_uniform_buffers,
                 )
             )
         if self.fragment_shader_handle is None:
+            binary, binary_format, entrypoint = spec.binary_for(
+                ShaderStage.FRAGMENT,
+                shader_format,
+            )
             self.fragment_shader_handle = resources.create_shader(
                 ShaderDescriptor.from_base64(
-                    _read_shader(spec.fragment_binary),
+                    _read_shader(binary),
                     stage=ShaderStage.FRAGMENT,
+                    format=binary_format,
+                    entrypoint=entrypoint,
                     num_uniform_buffers=spec.fragment_uniform_buffers,
                 )
             )

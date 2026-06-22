@@ -3,7 +3,7 @@ Running the basic RenderWindow with the concrete basic Compoment of the decorato
 pattern, that is the RHIWindow, without any decorator on top.
 """
 
-from Elements.pyGLV.RHI.Viewer import RHIWindow
+from Elements.pyGLV.RHI import Key, QuitEvent, RHIWindow, WindowCloseEvent
 
 gWindow = RHIWindow(windowTitle="A simple empty RHI window. Hit ESC or close the window to quit!")
 gWindow.init()
@@ -14,7 +14,15 @@ running = True
 # MAIN RENDERING LOOP
 
 while running:
-    running = gWindow.event_input_process()
+    gWindow.begin_frame()
+    for event in gWindow.poll_events():
+        if isinstance(event, (QuitEvent, WindowCloseEvent)):
+            running = False
+    if gWindow.input.was_key_pressed(Key.ESCAPE):
+        running = False
+    if not running:
+        break
     gWindow.display()
     gWindow.display_post()
+    gWindow.end_frame()
 gWindow.shutdown()

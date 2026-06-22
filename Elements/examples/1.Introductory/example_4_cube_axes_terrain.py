@@ -4,6 +4,7 @@ import Elements.pyECSS.math_utilities as util
 from Elements.pyECSS.Entity import Entity
 from Elements.pyECSS.Component import BasicTransform, Camera, RenderMesh
 from Elements.pyECSS.System import  TransformSystem, CameraSystem
+from Elements.pyGLV.RHI import Key, QuitEvent, WindowCloseEvent
 from Elements.pyGLV.RHI.Scene import Scene
 from Elements.pyGLV.RHI.Components import (
     BuiltInMaterial,
@@ -217,7 +218,15 @@ model_terrain = terrain.getChild(0).trs # notice that terrain.getChild(0) == ter
 model_axes = axes_trans.trs
 
 while running:
-    running = scene.render()
+    scene.renderWindow.begin_frame()
+    for event in scene.renderWindow.poll_events():
+        if isinstance(event, (QuitEvent, WindowCloseEvent)):
+            running = False
+    if scene.renderWindow.input.was_key_pressed(Key.ESCAPE):
+        running = False
+    if not running:
+        break
+    scene.renderWindow.display()
     scene.world.traverse_visit(renderUpdate, scene.world.root)
     scene.world.traverse_visit_pre_camera(camUpdate, orthoCam)
     scene.world.traverse_visit(camUpdate, scene.world.root)
@@ -230,5 +239,6 @@ while running:
     terrain_shader.setUniformVariable(key='modelViewProj', value=mvp_terrain, mat4=True)
     shaderDec4.setUniformVariable(key='modelViewProj', value=mvp_cube, mat4=True)
     scene.render_post()
+    scene.renderWindow.end_frame()
     
 scene.shutdown()

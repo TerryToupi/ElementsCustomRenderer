@@ -3,14 +3,16 @@ from __future__ import annotations
 from typing import Any
 
 import numpy as np
-from ._sdl import sdl
 
 import Elements.pyECSS.System
 
 from .Device import Device, GpuRenderPassDesc
 from .Enums import TextureFormat, TextureUsage
+from .events import Event, KeyDownEvent, WindowCloseEvent, WindowResizeEvent
+from .input import InputState, Key
 from .ResourceManager import ResourceManager
 from .Resources.Texture import TextureDescriptor
+from .sdl_events import convert_sdl_events, update_input_state
 from .Surface import Surface, SurfaceDescriptor
 from .Window import Window
 
@@ -46,7 +48,9 @@ class RHIWindow:
         self._depth_format = depth_format
         self._wireframeMode = False
         self._myCamera = np.identity(4, dtype=np.float32)
+        self._input = InputState()
         self._last_events = []
+        self._last_rhi_events: list[Event] = []
 
     @property
     def raw(self):
@@ -124,6 +128,14 @@ class RHIWindow:
     def last_events(self) -> list[Any]:
         return self._last_events
 
+    @property
+    def last_rhi_events(self) -> list[Event]:
+        return self._last_rhi_events
+
+    @property
+    def input(self) -> InputState:
+        return self._input
+
     def init(self) -> None:
         self._window = Window(
             title=self._windowTitle,
@@ -169,20 +181,24 @@ class RHIWindow:
         finally:
             self.surface.clear_current_image()
 
+    def begin_frame(self) -> None:
+        self._input.begin_frame()
+
+    def poll_events(self) -> list[Event]:
+        raw_events = self.window.poll_events()
+        events = convert_sdl_events(raw_events)
+        update_input_state(self._input, events)
+        self._last_events = raw_events
+        self._last_rhi_events = events
+        self._handle_rhi_events(events)
+        return events
+
+    def end_frame(self) -> None:
+        pass
+
     def event_input_process(self, running: bool = True) -> bool:
-        events = self.window.poll_events()
-        self._last_events = events
-        running = running and not self.window.should_close
-
-        for event in events:
-            if self._is_resize_event(event):
-                self._windowWidth = int(getattr(event.window, "data1", self._windowWidth))
-                self._windowHeight = int(getattr(event.window, "data2", self._windowHeight))
-                if self._depth_enabled:
-                    self._create_depth_texture(self._windowWidth, self._windowHeight)
-            elif self._is_wireframe_toggle(event):
-                self._wireframeMode = not self._wireframeMode
-
+        self.begin_frame()
+        self.poll_events()
         return running and not self.window.should_close
 
     def shutdown(self) -> None:
@@ -214,19 +230,18 @@ class RHIWindow:
             )
         )
 
-    @staticmethod
-    def _is_resize_event(event: Any) -> bool:
-        return event.type in {
-            getattr(sdl, "SDL_EVENT_WINDOW_RESIZED", object()),
-            getattr(sdl, "SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED", object()),
-        }
+    def _handle_rhi_events(self, events: list[Event]) -> None:
+        for event in events:
+            if isinstance(event, WindowResizeEvent):
+                self._windowWidth = event.width or self._windowWidth
+                self._windowHeight = event.height or self._windowHeight
+                if self._depth_enabled:
+                    self._create_depth_texture(self._windowWidth, self._windowHeight)
+            elif isinstance(event, WindowCloseEvent):
+                self.window.should_close = True
+            elif self._is_wireframe_toggle_event(event):
+                self._wireframeMode = not self._wireframeMode
 
     @staticmethod
-    def _is_wireframe_toggle(event: Any) -> bool:
-        if event.type != getattr(sdl, "SDL_EVENT_KEY_DOWN", None):
-            return False
-        key = getattr(event.key, "key", None)
-        return key in {
-            getattr(sdl, "SDLK_f", None),
-            getattr(sdl, "SDLK_F", None),
-        }
+    def _is_wireframe_toggle_event(event: Event) -> bool:
+        return isinstance(event, KeyDownEvent) and event.key is Key.F

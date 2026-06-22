@@ -6,6 +6,7 @@ import numpy as np
 import Elements.pyECSS.math_utilities as util
 from Elements.pyECSS.Component import BasicTransform, RenderMesh
 from Elements.pyECSS.Entity import Entity
+from Elements.pyGLV.RHI import Key, QuitEvent, WindowCloseEvent
 from Elements.pyGLV.RHI.Components import (
     BuiltInMaterial,
     InitRHISystem,
@@ -183,7 +184,15 @@ start_time = time.perf_counter()
 running = True
 
 while running:
-    running = scene.render()
+    scene.renderWindow.begin_frame()
+    for event in scene.renderWindow.poll_events():
+        if isinstance(event, (QuitEvent, WindowCloseEvent)):
+            running = False
+    if scene.renderWindow.input.was_key_pressed(Key.ESCAPE):
+        running = False
+    if not running:
+        break
+    scene.renderWindow.display()
 
     elapsed = time.perf_counter() - start_time
     light_position = util.vec(
@@ -220,5 +229,6 @@ while running:
 
     scene.world.traverse_visit(renderUpdate, scene.world.root)
     scene.render_post()
+    scene.renderWindow.end_frame()
 
 scene.shutdown()

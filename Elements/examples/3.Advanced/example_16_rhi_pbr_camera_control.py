@@ -6,7 +6,17 @@ import numpy as np
 import Elements.pyECSS.math_utilities as util
 from Elements.pyECSS.Component import BasicTransform, RenderMesh
 from Elements.pyECSS.Entity import Entity
-from Elements.pyGLV.RHI._sdl import sdl
+from Elements.pyGLV.RHI import (
+    InputState,
+    Key,
+    MouseButton,
+    MouseButtonDownEvent,
+    MouseButtonUpEvent,
+    MouseMoveEvent,
+    MouseWheelEvent,
+    QuitEvent,
+    WindowCloseEvent,
+)
 from Elements.pyGLV.RHI.Components import (
     BuiltInMaterial,
     InitRHISystem,
@@ -38,43 +48,37 @@ class OrbitCameraController:
         self.pitch = 18.0
         self.orbiting = False
         self.panning = False
-        self.held_keys = set()
 
-    def update(self, events, dt):
+    def update(self, events, input_state: InputState, dt):
         for event in events:
-            event_type = getattr(event, "type", None)
-            if event_type == getattr(sdl, "SDL_EVENT_KEY_DOWN", None):
-                self.held_keys.add(getattr(event.key, "key", None))
-            elif event_type == getattr(sdl, "SDL_EVENT_KEY_UP", None):
-                self.held_keys.discard(getattr(event.key, "key", None))
-            elif event_type == getattr(sdl, "SDL_EVENT_MOUSE_BUTTON_DOWN", None):
-                button = getattr(event.button, "button", None)
-                self.orbiting = button == getattr(sdl, "SDL_BUTTON_RIGHT", 3)
-                self.panning = button == getattr(sdl, "SDL_BUTTON_MIDDLE", 2)
-            elif event_type == getattr(sdl, "SDL_EVENT_MOUSE_BUTTON_UP", None):
-                button = getattr(event.button, "button", None)
-                if button == getattr(sdl, "SDL_BUTTON_RIGHT", 3):
+            if isinstance(event, MouseButtonDownEvent):
+                self.orbiting = event.button is MouseButton.RIGHT
+                self.panning = event.button is MouseButton.MIDDLE
+            elif isinstance(event, MouseButtonUpEvent):
+                if event.button is MouseButton.RIGHT:
                     self.orbiting = False
-                elif button == getattr(sdl, "SDL_BUTTON_MIDDLE", 2):
+                elif event.button is MouseButton.MIDDLE:
                     self.panning = False
-            elif event_type == getattr(sdl, "SDL_EVENT_MOUSE_MOTION", None):
-                dx = float(getattr(event.motion, "xrel", 0.0))
-                dy = float(getattr(event.motion, "yrel", 0.0))
+            elif isinstance(event, MouseMoveEvent):
+                dx = event.dx
+                dy = event.dy
                 if self.orbiting:
                     self.yaw -= dx * 0.25
                     self.pitch -= dy * 0.25
                 elif self.panning:
                     self._pan(-dx * 0.005 * self.distance, dy * 0.005 * self.distance)
-            elif event_type == getattr(sdl, "SDL_EVENT_MOUSE_WHEEL", None):
-                wheel_y = float(getattr(event.wheel, "y", 0.0))
-                self.distance *= pow(0.88, wheel_y)
+            elif isinstance(event, MouseWheelEvent):
+                self.distance *= pow(0.88, event.y)
 
-        self.yaw += self._axis("right", "left") * 70.0 * dt
-        self.pitch += self._axis("up", "down") * 70.0 * dt
-        self.distance *= pow(0.35, self._axis("zoom_in", "zoom_out") * dt)
+        self.yaw += self._axis(input_state, "right", "left") * 70.0 * dt
+        self.pitch += self._axis(input_state, "up", "down") * 70.0 * dt
+        self.distance *= pow(
+            0.35,
+            self._axis(input_state, "zoom_in", "zoom_out") * dt,
+        )
         self._pan(
-            self._axis("pan_right", "pan_left") * 2.8 * dt,
-            self._axis("pan_up", "pan_down") * 2.8 * dt,
+            self._axis(input_state, "pan_right", "pan_left") * 2.8 * dt,
+            self._axis(input_state, "pan_up", "pan_down") * 2.8 * dt,
         )
 
         self.pitch = float(np.clip(self.pitch, -80.0, 80.0))
@@ -107,40 +111,26 @@ class OrbitCameraController:
         up = util.normalise(np.cross(right, forward))
         self.target += right * right_delta + up * up_delta
 
-    def _axis(self, positive, negative):
-        return float(self._any_key(KEY_GROUPS[positive])) - float(
-            self._any_key(KEY_GROUPS[negative])
+    def _axis(self, input_state: InputState, positive, negative):
+        return float(self._any_key(input_state, KEY_GROUPS[positive])) - float(
+            self._any_key(input_state, KEY_GROUPS[negative])
         )
 
-    def _any_key(self, keys):
-        return any(key in self.held_keys for key in keys)
-
-
-def key_codes(lowercase):
-    uppercase = lowercase.upper()
-    codes = {
-        ord(lowercase),
-        ord(uppercase),
-        getattr(sdl, f"SDLK_{lowercase}", ord(lowercase)),
-        getattr(sdl, f"SDLK_{uppercase}", ord(uppercase)),
-    }
-    return {code for code in codes if code is not None}
+    def _any_key(self, input_state: InputState, keys):
+        return any(input_state.is_key_down(key) for key in keys)
 
 
 KEY_GROUPS = {
-    "left": key_codes("j") | {getattr(sdl, "SDLK_LEFT", None)},
-    "right": key_codes("l") | {getattr(sdl, "SDLK_RIGHT", None)},
-    "up": key_codes("i") | {getattr(sdl, "SDLK_UP", None)},
-    "down": key_codes("k") | {getattr(sdl, "SDLK_DOWN", None)},
-    "pan_left": key_codes("a"),
-    "pan_right": key_codes("d"),
-    "pan_up": key_codes("w"),
-    "pan_down": key_codes("s"),
-    "zoom_in": key_codes("q"),
-    "zoom_out": key_codes("e"),
-}
-KEY_GROUPS = {
-    name: {key for key in keys if key is not None} for name, keys in KEY_GROUPS.items()
+    "left": {Key.J, Key.LEFT},
+    "right": {Key.L, Key.RIGHT},
+    "up": {Key.I, Key.UP},
+    "down": {Key.K, Key.DOWN},
+    "pan_left": {Key.A},
+    "pan_right": {Key.D},
+    "pan_up": {Key.W},
+    "pan_down": {Key.S},
+    "zoom_in": {Key.Q},
+    "zoom_out": {Key.E},
 }
 
 
@@ -309,13 +299,22 @@ last_time = start_time
 running = True
 
 while running:
-    running = scene.render()
+    scene.renderWindow.begin_frame()
+    events = scene.renderWindow.poll_events()
+    for event in events:
+        if isinstance(event, (QuitEvent, WindowCloseEvent)):
+            running = False
+    if scene.renderWindow.input.was_key_pressed(Key.ESCAPE):
+        running = False
+    if not running:
+        break
+    scene.renderWindow.display()
 
     now = time.perf_counter()
     dt = min(now - last_time, 1.0 / 20.0)
     last_time = now
 
-    camera.update(scene.renderWindow.last_events, dt)
+    camera.update(events, scene.renderWindow.input, dt)
     view = camera.view_matrix()
     eye = camera.eye_position()
     aspect = max(1, scene.renderWindow._windowWidth) / max(
@@ -348,5 +347,6 @@ while running:
 
     scene.world.traverse_visit(renderUpdate, scene.world.root)
     scene.render_post()
+    scene.renderWindow.end_frame()
 
 scene.shutdown()

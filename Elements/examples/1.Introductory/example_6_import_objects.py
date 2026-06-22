@@ -6,6 +6,7 @@ import Elements.pyECSS.math_utilities as util
 from Elements.pyECSS.Entity import Entity
 from Elements.pyECSS.Component import BasicTransform, Camera, RenderMesh
 from Elements.pyECSS.System import TransformSystem, CameraSystem
+from Elements.pyGLV.RHI import Key, QuitEvent, WindowCloseEvent
 from Elements.pyGLV.RHI.Scene import Scene
 from Elements.pyGLV.RHI.Components import (
     BuiltInMaterial,
@@ -199,7 +200,15 @@ model_teapot = util.scale(0.1) @ util.translate(0.0,0.5,0.0)
 
 
 while running:
-    running = scene.render()
+    scene.renderWindow.begin_frame()
+    for event in scene.renderWindow.poll_events():
+        if isinstance(event, (QuitEvent, WindowCloseEvent)):
+            running = False
+    if scene.renderWindow.input.was_key_pressed(Key.ESCAPE):
+        running = False
+    if not running:
+        break
+    scene.renderWindow.display()
     scene.world.traverse_visit(transUpdate, scene.world.root)
     view =  gWindow._myCamera
 
@@ -223,5 +232,6 @@ while running:
 
     scene.world.traverse_visit(renderUpdate, scene.world.root)
     scene.render_post()
+    scene.renderWindow.end_frame()
     
 scene.shutdown()
