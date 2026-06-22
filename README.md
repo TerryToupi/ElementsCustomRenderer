@@ -12,6 +12,17 @@ https://user-images.githubusercontent.com/13041399/229489757-f0f3d208-a26d-4fa2-
 
 
 
+## About This Fork
+
+This repository is a fork of [papagiannakis/Elements](https://github.com/papagiannakis/Elements).
+The original project provides the ECS, scenegraph, OpenGL, GUI, and educational
+example foundation; this fork extends it with an SDL3/SDL_GPU based Rendering
+Hardware Interface (RHI) and a set of focused RHI teaching examples.
+
+The goal of the fork is to make low-level graphics and compute execution flow
+easier for students to inspect: create GPU resources, record commands, submit
+work, and see how graphics and compute pipelines exchange data.
+
 ## Overview
  
 Elements introduces for the first time the power of the Entity-Component-System (ECS) with the versatility of Scenegraphs, in the context of Computer Graphics (CG), Deep Learning (DL) for Scientific Visualization (SciViz). It also aims to provide the basic tools to anyone that wants to be involved with basic Computer Graphics as well as advanced topics such as Geometric Deep Learning, Geometric Algebra and many many more.
@@ -30,7 +41,9 @@ To dive in the details of the project check [its detailed developer documentatio
 
 ## Getting Started - Installation Instructions
 
-Begin by following the installation instructions, found [HERE](https://elementsproject.readthedocs.io/en/latest/source/getting_started/installation.html). For **Computer Graphics Course students**, the instructions are [HERE](https://github.com/papagiannakis/Elements/wiki/Installation-Instructions-for-Computer-Graphics-Course-students).
+You can still follow the original Elements installation instructions [HERE](https://elementsproject.readthedocs.io/en/latest/source/getting_started/installation.html).
+For this fork, use the local setup below so the new RHI examples have the SDL3
+and Python dependencies they need.
 
 > [!NOTE]
 > We strongly recommend using:
@@ -39,16 +52,58 @@ Begin by following the installation instructions, found [HERE](https://elementsp
 > * [Fork](https://git-fork.com)/[Sourcetree](https://www.sourcetreeapp.com) for version control.
 
 The main steps summarize as follows:
-* Install Anaconda, VSCode, Git and a optionally a version control app
-* Clone (or download) this repo (or your forked repo)
-* Create a python 3.8 environment, by running 
-  ```conda create -n elements python=3.8```,
-  and activate it via
-  ```conda activate elements```
-* Install the Elements in editable mode by running
- ```pip install -e .```
-* Start exploring the examples in the ```Elements/examples``` folder.
 
+```bash
+git clone <this-repository-url>
+cd ElementsCustomRenderer
+
+conda create -n elements-rhi python=3.9
+conda activate elements-rhi
+
+pip install -e .
+```
+
+SDL_GPU requires a supported graphics backend. On macOS this normally means
+Metal support through SDL3; on Linux or Windows it normally means a recent
+Vulkan or Direct3D 12 capable driver.
+
+Run examples from the repository root:
+
+```bash
+python Elements/examples/1.Introductory/example_8_rhi_graphics_pipeline_basic.py
+python Elements/examples/1.Introductory/example_9_rhi_compute_pipeline_basic.py
+python Elements/examples/3.Advanced/example_18_rhi_compute_particles.py
+python Elements/examples/3.Advanced/example_19_rhi_black_hole_pathtraced_volume.py
+```
+
+If `SDL_CreateGPUDevice` reports that no supported backend was found, check that
+your installed SDL3 build includes the GPU backend for your platform and that
+your graphics driver supports it.
+
+## What This Fork Adds
+
+### RHI Core
+
+* SDL3/SDL_GPU device creation with backend-aware shader format selection.
+* RHI window and surface setup with swapchain acquisition and render-pass helpers.
+* Recorded command buffers for graphics and compute command submission.
+* Graphics pipeline creation with shader resources, render passes, primitive drawing, indexed drawing, and storage-buffer reads.
+* Compute pipeline creation with dispatch, storage-buffer binding, storage-texture binding, and compute uniform data.
+* GPU buffer upload and CPU readback through transfer buffers.
+* Texture and sampler resource creation through the RHI `ResourceManager`.
+* Fragment texture/sampler binding so graphics passes can sample compute-generated textures.
+* RHI keyboard, mouse, wheel, resize, quit, and close event handling.
+
+### RHI Examples
+
+* [Example 7](./Elements/examples/1.Introductory/example_7_rhi_input_events.py): Shows the RHI input and event API.
+* [Example 8](./Elements/examples/1.Introductory/example_8_rhi_graphics_pipeline_basic.py): Shows a minimal graphics pipeline that draws one triangle.
+* [Example 9](./Elements/examples/1.Introductory/example_9_rhi_compute_pipeline_basic.py): Shows a minimal compute pipeline that writes a GPU buffer and reads it back.
+* [Example 15](./Elements/examples/3.Advanced/example_15_rhi_pbr_materials.py): Shows RHI physically based materials with metallic and roughness variation.
+* [Example 16](./Elements/examples/3.Advanced/example_16_rhi_pbr_camera_control.py): Shows RHI PBR rendering with orbit, pan, and zoom camera controls.
+* [Example 17](./Elements/examples/3.Advanced/example_17_rhi_meshlet_imitation.py): Shows meshlet-style clustered drawing and bounds visualization.
+* [Example 18](./Elements/examples/3.Advanced/example_18_rhi_compute_particles.py): Shows compute updating a storage buffer that graphics renders as particles.
+* [Example 19](./Elements/examples/3.Advanced/example_19_rhi_black_hole_pathtraced_volume.py): Shows compute writing an HDR texture that graphics tone-maps to the window.
 
 
 
