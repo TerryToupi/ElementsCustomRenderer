@@ -5,12 +5,7 @@
 [![arXiv](https://img.shields.io/badge/arXiv-2302.07691-b31b1b.svg)](https://arxiv.org/abs/2302.07691)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
-
-
 https://user-images.githubusercontent.com/13041399/229489757-f0f3d208-a26d-4fa2-8891-f4d1c7f3aa27.mp4
-
-
-
 
 ## About This Fork
 
@@ -24,7 +19,7 @@ easier for students to inspect: create GPU resources, record commands, submit
 work, and see how graphics and compute pipelines exchange data.
 
 ## Overview
- 
+
 Elements introduces for the first time the power of the Entity-Component-System (ECS) with the versatility of Scenegraphs, in the context of Computer Graphics (CG), Deep Learning (DL) for Scientific Visualization (SciViz). It also aims to provide the basic tools to anyone that wants to be involved with basic Computer Graphics as well as advanced topics such as Geometric Deep Learning, Geometric Algebra and many many more.
 
 Following a modern educational approach, all related packages are in the Python programming language.
@@ -37,8 +32,6 @@ To dive in the details of the project check [its detailed developer documentatio
 * pyGLV : A package applying ECSS to CG, DL and SciViz problems
 * pyEEL : A learning hub for various topics where ECSS can be applied
 
-
-
 ## Getting Started - Installation Instructions
 
 You can still follow the original Elements installation instructions [HERE](https://elementsproject.readthedocs.io/en/latest/source/getting_started/installation.html).
@@ -47,7 +40,8 @@ and Python dependencies they need.
 
 > [!NOTE]
 > We strongly recommend using:
-> * [Anaconda](https://www.anaconda.com/products/individual) for your python environment, 
+>
+> * [Anaconda](https://www.anaconda.com/products/individual) for your python environment,
 > * [Visual Studio Code](https://code.visualstudio.com) as your IDE, and
 > * [Fork](https://git-fork.com)/[Sourcetree](https://www.sourcetreeapp.com) for version control.
 
@@ -105,8 +99,15 @@ your graphics driver supports it.
 * [Example 18](./Elements/examples/3.Advanced/example_18_rhi_compute_particles.py): Shows compute updating a storage buffer that graphics renders as particles.
 * [Example 19](./Elements/examples/3.Advanced/example_19_rhi_black_hole_pathtraced_volume.py): Shows compute writing an HDR texture that graphics tone-maps to the window.
 
+### RHI Example Previews
 
-
+| Example | Preview |
+| --- | --- |
+| [Example 15: RHI PBR Materials](./Elements/examples/3.Advanced/example_15_rhi_pbr_materials.py) | <img src="./data/example15.gif" alt="RHI PBR materials preview" width="360"> |
+| [Example 16: RHI PBR Camera Control](./Elements/examples/3.Advanced/example_16_rhi_pbr_camera_control.py) | <img src="./data/example16.gif" alt="RHI PBR camera control preview" width="360"> |
+| [Example 17: RHI Meshlet Imitation](./Elements/examples/3.Advanced/example_17_rhi_meshlet_imitation.py) | <img src="./data/example17.png" alt="RHI meshlet imitation preview" width="360"> |
+| [Example 18: RHI Compute Particles](./Elements/examples/3.Advanced/example_18_rhi_compute_particles.py) | <img src="./data/example18.gif" alt="RHI compute particles preview" width="360"> |
+| [Example 19: RHI Black Hole Path-Traced Volume](./Elements/examples/3.Advanced/example_19_rhi_black_hole_pathtraced_volume.py) | <img src="./data/example19.gif" alt="RHI black hole path-traced volume preview" width="360"> |
 
 ## Folder Structure
 
@@ -139,22 +140,22 @@ your graphics driver supports it.
     * [GL](./Elements/pyGLV/GL): The basic Graphics Library files (Scene, Shader, Texture, VertexArray)
     * [GUI](./Elements/pyGLV/GUI): Files related to the window and GUI instantiation.
   * [pyEEL](./Elements/pyEEL): The pyEEL learning hub
-    * [notebooks](./Elements/pyEEL/notebooks): Contains all the jupyter notebooks of pyEEL  
+    * [notebooks](./Elements/pyEEL/notebooks): Contains all the jupyter notebooks of pyEEL
       * [SciCom](./Elements/pyEEL/notebooks/SciCom): Scientific Computation related notebooks
       * [neuralCG](./Elements/pyEEL/notebooks/neuralCG): Neural networks in CG related notebooks
       * [DL](./Elements/pyEEL/notebooks/DL): Deep Learning related notebooks
       * [CG](./Elements/pyEEL/notebooks/CG): Computer Graphics (CG) related notebooks
       * [GATE](./Elements/pyEEL/notebooks/GATE): Geometric Algebra Transformation Engine related notebooks
   * [utils](./Elements/utils): Utility files and functions for Elements
-  
-## Contribute to Elements</h2>
-If you want to contribute to Elements, kindly check its [WIKI](https://github.com/papagiannakis/Elements/wiki) 
+
+## Contribute to Elements`</h2>`
+
+If you want to contribute to Elements, kindly check its [WIKI](https://github.com/papagiannakis/Elements/wiki)
 for a list of potential projects and a contribution guide. A list of contributors can be found [here](https://github.com/papagiannakis/Elements/wiki/Contributors).
 
 ## Contact Us
 
 If you have any questions or would like to learn more about our project, please don't hesitate to [contact us](mailto:papagian@ics.forth.gr).
-
 
 ## Citation
 
